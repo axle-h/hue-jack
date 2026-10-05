@@ -1,0 +1,77 @@
+name: image
+
+# Builds the bootc OS image. On main it's pushed to ghcr.io/axle-h/hue-jack as :latest and
+# :sha-<short>; anywhere else it's only built.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - os/**
+      - crates/**
+      - web/**
+      - ytcr/**
+      - Cargo.toml
+      - Cargo.lock
+      - .containerignore
+      - .github/workflows/image.yml
+  pull_request:
+    paths:
+      - os/**
+      - crates/**
+      - web/**
+      - ytcr/**
+      - Cargo.toml
+      - Cargo.lock
+      - .containerignore
+      - .github/workflows/image.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: image-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  IMAGE: ghcr.io/axle-h/hue-jack
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /usr/local/share/boost /opt/hostedtoolcache/CodeQL
+          df -h /
+
+      - name: Build
+        run: |
+          short="${GITHUB_SHA::7}"
+          podman --version
+          podman build -f os/Containerfile \
+            --label "org.opencontainers.image.revision=${GITHUB_SHA}" \
+            -t "${IMAGE}:latest" -t "${IMAGE}:sha-${short}" .
+
+      - name: Smoke test
+        run: |
+          podman run --rm "${IMAGE}:latest" hue-jack --version
+          podman run --rm "${IMAGE}:latest" shairport-sync -V | tee /dev/stderr | grep -q AirPlay2
+
+      - name: Push
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        run: |
+          short="${GITHUB_SHA::7}"
+          echo "${{ secrets.GITHUB_TOKEN }}" | podman login ghcr.io -u "${{ github.actor }}" --password-stdin
+          for tag in "sha-${short}" latest; do
+            for attempt in 1 2 3; do
+              podman push "${IMAGE}:${tag}" && break
+              [ "$attempt" = 3 ] && exit 1
+              sleep 10
+            done
+          done

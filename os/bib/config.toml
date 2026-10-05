@@ -1,0 +1,20 @@
+# bootc-image-builder config for the hue-jack installer ISO (--type anaconda-iso).
+#
+# WARNING: the installer is fully automatic and WIPES THE FIRST DISK. Only boot it on the NUC.
+#
+# bootc-image-builder doesn't support [customizations.user] together with a custom kickstart,
+# so the user and SSH key are created by the kickstart itself. bootc-image-builder appends the
+# `ostreecontainer` command that installs ghcr.io/axle-h/hue-jack:latest.
+
+[customizations.installer.kickstart]
+contents = """
+text --non-interactive
+zerombr
+clearpart --all --initlabel --disklabel=gpt
+autopart --noswap
+network --bootproto=dhcp --device=link --activate --onboot=on --hostname=hue-jack
+rootpw --lock
+user --name=alex --groups=wheel
+sshkey --username=alex "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKiSOsg6pTbpcz7Mkotzs3Nhq30CyoJKrWqzLGjPf0/l alex.haslehurst@gmail.com"
+reboot --eject
+"""

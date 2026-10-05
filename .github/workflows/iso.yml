@@ -1,0 +1,77 @@
+name: iso
+
+# Builds the unattended installer ISO (bootc-image-builder anaconda-iso) from the published image.
+# The installed system tracks ghcr.io/axle-h/hue-jack:latest, so `bootc upgrade` follows main.
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: [image]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: iso
+  cancel-in-progress: true
+
+env:
+  IMAGE: ghcr.io/axle-h/hue-jack
+
+jobs:
+  iso:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event != 'pull_request')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android /usr/local/share/boost /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force || true
+          df -h /
+
+      - name: Pull the image
+        env:
+          HEAD_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | sudo podman login ghcr.io -u "${{ github.actor }}" --password-stdin
+          if [ -n "${HEAD_SHA}" ]; then
+            # Build from exactly the commit that triggered this run, but keep the :latest
+            # reference so the installed system upgrades from :latest.
+            sudo podman pull "${IMAGE}:sha-${HEAD_SHA::7}"
+            sudo podman tag "${IMAGE}:sha-${HEAD_SHA::7}" "${IMAGE}:latest"
+          else
+            sudo podman pull "${IMAGE}:latest"
+          fi
+          sudo podman images
+
+      - name: Build the ISO
+        run: |
+          mkdir -p output
+          sudo podman run --rm --privileged --pull=newer \
+            --security-opt label=type:unconfined_t \
+            -v ./os/bib/config.toml:/config.toml:ro \
+            -v ./output:/output \
+            -v /var/lib/containers/storage:/var/lib/containers/storage \
+            quay.io/centos-bootc/bootc-image-builder:latest \
+            --type anaconda-iso \
+            --rootfs xfs \
+            --use-librepo=True \
+            "${IMAGE}:latest"
+          sudo chown -R "$(id -u):$(id -g)" output
+          ls -lh output/bootiso/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hue-jack-iso
+          path: output/bootiso/install.iso
+          retention-days: 14
+          compression-level: 0
+          if-no-files-found: error

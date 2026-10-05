@@ -1,0 +1,20 @@
+[Unit]
+Description=hue-jack YouTube Music cast receiver (DIAL + Lounge, mpv)
+Documentation=https://github.com/axle-h/hue-jack
+ConditionUser=huejack
+Wants=pipewire.service wireplumber.service
+After=pipewire.service wireplumber.service
+
+[Service]
+Type=simple
+Environment=HUEJACK_STATE_DIR=/var/lib/hue-jack
+Environment=NODE_ENV=production
+WorkingDirectory=/usr/lib/hue-jack/ytcr
+ExecStart=/usr/bin/node /usr/lib/hue-jack/ytcr/dist/main.js
+Restart=on-failure
+RestartSec=5s
+RestartSteps=5
+RestartMaxDelaySec=60s
+
+[Install]
+WantedBy=default.target
