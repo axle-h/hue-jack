@@ -1,0 +1,10 @@
+.git
+.claude
+.github
+target
+**/node_modules
+web/dist
+ytcr/dist
+output
+test-audio
+*.iso

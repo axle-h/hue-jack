@@ -1,0 +1,120 @@
+# hue-jack appliance OS: a Fedora bootc image.
+#
+#   podman build -f os/Containerfile -t localhost/hue-jack:dev .
+#
+# Stages: "airplay" builds nqptp + shairport-sync (AirPlay 2) from source, "app" builds hue-jack
+# (web UI embedded) and the ytcr sidecar, and the final stage is the bootable image.
+
+# ---------------------------------------------------------------------------------------------
+# AirPlay 2: Fedora's shairport-sync package is built without AirPlay 2 or MPRIS, and nqptp isn't
+# packaged, so build both from source.
+FROM quay.io/fedora/fedora:44 AS airplay
+
+ARG NQPTP_VERSION=1.2.8
+ARG SHAIRPORT_SYNC_VERSION=5.5.2
+
+RUN dnf install -y --setopt=install_weak_deps=False \
+        gcc gcc-c++ make autoconf automake libtool pkgconf-pkg-config git-core xxd \
+        avahi-devel libconfig-devel openssl-devel popt-devel soxr-devel \
+        ffmpeg-free-devel libplist-devel libsodium-devel libgcrypt-devel libuuid-devel \
+        pipewire-devel pulseaudio-libs-devel glib2-devel \
+    && dnf clean all
+
+RUN git clone --depth 1 --branch "${NQPTP_VERSION}" https://github.com/mikebrady/nqptp.git /src/nqptp \
+    && cd /src/nqptp \
+    && autoreconf -fi \
+    && ./configure --prefix=/usr \
+    && make -j"$(nproc)" \
+    && install -D -m 0755 nqptp /out/usr/bin/nqptp
+
+RUN git clone --depth 1 --branch "${SHAIRPORT_SYNC_VERSION}" https://github.com/mikebrady/shairport-sync.git /src/shairport-sync \
+    && cd /src/shairport-sync \
+    && autoreconf -fi \
+    && ./configure --prefix=/usr --sysconfdir=/etc \
+        --with-airplay-2 --with-pipewire --with-pulseaudio \
+        --with-mpris-interface --with-metadata \
+        --with-avahi --with-ssl=openssl --with-soxr \
+    && make -j"$(nproc)" \
+    && install -D -m 0755 shairport-sync /out/usr/bin/shairport-sync \
+    && /out/usr/bin/shairport-sync -V \
+    && /out/usr/bin/shairport-sync -V | grep -q AirPlay2
+
+# ---------------------------------------------------------------------------------------------
+# hue-jack (Rust, web UI embedded) and the ytcr sidecar (Node).
+FROM quay.io/fedora/fedora:44 AS app
+
+RUN dnf install -y --setopt=install_weak_deps=False \
+        rust cargo gcc pkgconf-pkg-config clang-devel \
+        pipewire-devel openssl-devel dbus-devel \
+        nodejs24 nodejs24-bin nodejs24-npm nodejs24-npm-bin git-core \
+    && dnf clean all
+
+WORKDIR /src
+
+# Dependencies first, so they're cached while the sources change.
+COPY web/package.json web/package-lock.json web/
+RUN cd web && npm ci --no-audit --no-fund
+COPY ytcr/package.json ytcr/package-lock.json ytcr/
+RUN cd ytcr && npm ci --no-audit --no-fund
+
+COPY . .
+
+RUN cd web && npm run build
+
+# ytcr: build, then keep only production dependencies.
+RUN cd ytcr \
+    && npm run build \
+    && rm -rf node_modules \
+    && npm ci --omit=dev --no-audit --no-fund \
+    && mkdir -p node_modules
+
+RUN --mount=type=cache,target=/root/.cargo/registry \
+    --mount=type=cache,target=/root/.cargo/git \
+    --mount=type=cache,target=/src/target \
+    cargo build --release --locked -p hue-jack \
+    && install -D -m 0755 target/release/hue-jack /out/usr/bin/hue-jack
+
+# ---------------------------------------------------------------------------------------------
+FROM quay.io/fedora/fedora-bootc:44
+
+LABEL org.opencontainers.image.source=https://github.com/axle-h/hue-jack
+LABEL org.opencontainers.image.description="hue-jack: Bluetooth / AirPlay 2 / YouTube Music cast receiver that drives Philips Hue lights in sync"
+LABEL org.opencontainers.image.licenses=MIT
+
+# Audio stack, receivers and their runtime libraries. iwlbluetooth-firmware is needed by the
+# NUC's Intel 8260 Bluetooth (btintel ibt-* firmware). No firewalld: AirPlay 2, DIAL/SSDP and
+# mDNS need wide port ranges on the home LAN.
+RUN dnf install -y \
+        pipewire wireplumber pipewire-pulseaudio pipewire-alsa pipewire-utils \
+        bluez iwlbluetooth-firmware avahi nss-mdns \
+        mpv nodejs24 nodejs24-bin alsa-utils \
+        libconfig popt soxr libplist libsodium libgcrypt libuuid \
+        libavcodec-free libavformat-free libavutil-free libswresample-free \
+        avahi-libs glib2 pulseaudio-libs \
+    && dnf clean all \
+    && rm -rf /var/cache/* /var/log/* /var/lib/dnf /run/dnf
+
+COPY --from=airplay /out/usr/bin/ /usr/bin/
+COPY --from=app /out/usr/bin/hue-jack /usr/bin/hue-jack
+COPY --from=app /src/ytcr/package.json /usr/lib/hue-jack/ytcr/package.json
+COPY --from=app /src/ytcr/dist /usr/lib/hue-jack/ytcr/dist
+COPY --from=app /src/ytcr/node_modules /usr/lib/hue-jack/ytcr/node_modules
+COPY os/rootfs/ /
+
+# - huejack needs the "audio" group for ALSA. On bootc that group is in /usr/lib/group
+#   (nss-altfiles, merged with /etc/group), where sysusers can't add members, so add it here.
+# - Fail the build if a binary built in another stage is missing a runtime library.
+# - Global user units start for every user; each one has ConditionUser=huejack.
+RUN set -eux; \
+    chmod 0440 /etc/sudoers.d/wheel-nopasswd; \
+    sed -i -E 's/^(audio:x:[0-9]+:)$/\1huejack/;t;s/^(audio:x:[0-9]+:.+)$/\1,huejack/' /usr/lib/group; \
+    grep -E '^audio:x:[0-9]+:(.*,)?huejack$' /usr/lib/group; \
+    for bin in /usr/bin/hue-jack /usr/bin/shairport-sync /usr/bin/nqptp; do \
+        if ldd "$bin" | grep 'not found'; then echo "missing libraries for $bin" >&2; exit 1; fi; \
+    done; \
+    shairport-sync -V | grep -q AirPlay2; \
+    systemctl enable bluetooth.service avahi-daemon.service nqptp.service; \
+    systemctl mask bootc-fetch-apply-updates.timer; \
+    systemctl --global enable hue-jack.service hue-jack-ytcr.service hue-jack-shairport.service mpris-proxy.service
+
+RUN bootc container lint

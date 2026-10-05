@@ -1,0 +1,20 @@
+[Unit]
+Description=hue-jack: audio delay line, analysis and Hue streaming
+Documentation=https://github.com/axle-h/hue-jack
+# Globally enabled user units start for every user (including SSH logins): run for the appliance user only.
+ConditionUser=huejack
+Wants=pipewire.service wireplumber.service
+After=pipewire.service wireplumber.service
+
+[Service]
+Type=simple
+Environment=HUEJACK_STATE_DIR=/var/lib/hue-jack
+Environment=RUST_LOG=info
+ExecStart=/usr/bin/hue-jack serve --listen 0.0.0.0:80
+Restart=on-failure
+RestartSec=2s
+RestartSteps=5
+RestartMaxDelaySec=30s
+
+[Install]
+WantedBy=default.target

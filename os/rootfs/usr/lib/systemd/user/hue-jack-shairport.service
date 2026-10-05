@@ -1,0 +1,17 @@
+[Unit]
+Description=hue-jack AirPlay 2 receiver (shairport-sync)
+Documentation=https://github.com/mikebrady/shairport-sync
+ConditionUser=huejack
+Wants=pipewire.service wireplumber.service
+After=pipewire.service wireplumber.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/shairport-sync -c /usr/share/hue-jack/shairport-sync.conf
+Restart=on-failure
+RestartSec=5s
+RestartSteps=5
+RestartMaxDelaySec=60s
+
+[Install]
+WantedBy=default.target
