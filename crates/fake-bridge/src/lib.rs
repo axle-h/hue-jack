@@ -417,7 +417,9 @@ pub fn decode(packet: &[u8]) -> Result<(u8, String, Channels)> {
         bail!("bad channel data length {}", body.len());
     }
     let channels = body
-        .chunks_exact(7)
+        .as_chunks::<7>()
+        .0
+        .iter()
         .map(|c| {
             (
                 c[0],

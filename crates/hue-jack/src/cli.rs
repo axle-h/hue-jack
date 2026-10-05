@@ -104,7 +104,7 @@ pub enum Command {
     #[command(hide = true)]
     MeasureDelay {
         reference: PathBuf,
-        delayed: PathBuf,
+        delayed: Option<PathBuf>,
     },
 }
 
@@ -133,6 +133,7 @@ pub fn run(cli: Cli) -> Result<()> {
         Command::Analyze { wav, csv } => crate::analysis::analyze_cmd(&wav, csv.as_deref()),
         Command::Simulate(args) => crate::simulate::run(args),
         Command::MeasureDelay { reference, delayed } => {
+            let delayed = delayed.unwrap_or_else(|| reference.clone());
             let ms = crate::audio::wav::measure_delay_files(&reference, &delayed)?;
             println!("{ms:.2}");
             Ok(())

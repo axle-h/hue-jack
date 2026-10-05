@@ -9,7 +9,7 @@ repository.workspace = true
 [features]
 default = ["pipewire", "bluetooth"]
 # PipeWire capture/playback backend (needs pipewire-devel + clang-devel to build).
-pipewire = ["dep:pipewire"]
+pipewire = ["dep:pipewire", "dep:libspa-sys"]
 # BlueZ pairing window, agent and bonded devices (needs dbus-devel to build).
 bluetooth = ["dep:bluer"]
 
@@ -28,7 +28,8 @@ mime_guess = "2.0.5"
 openssl = "0.10.81"
 openssl-sys = "0.9"
 foreign-types = "0.3"
-pipewire = { version = "0.10.1", optional = true }
+pipewire = { version = "0.10.1", optional = true, features = ["v1_2_0"] }
+libspa-sys = { version = "0.10.1", optional = true }
 reqwest = { version = "0.13.5", default-features = false, features = ["json", "native-tls"] }
 rtrb = "0.4.0"
 rust-embed = { version = "8.12.0", features = ["interpolate-folder-path"] }

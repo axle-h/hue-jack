@@ -1010,6 +1010,7 @@ dependencies = [
  "hex",
  "hound",
  "libc",
+ "libspa-sys",
  "mdns-sd",
  "mime_guess",
  "openssl",
