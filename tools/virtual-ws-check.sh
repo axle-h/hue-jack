@@ -19,7 +19,7 @@ for s in hue-jack-dev-in hue-jack-dev-out; do
     MODULES+=("$(pactl load-module module-null-sink "sink_name=$s" "sink_properties=device.description=$s")")
 done
 [[ -f test-audio/drums_128.wav ]] || "$BIN" gen-test-audio test-audio >/dev/null
-"$BIN" --state-dir "$WORK/state" serve --virtual --no-sources --listen "127.0.0.1:$PORT" \
+"$BIN" --state-dir "$WORK/state" serve --virtual --listen "127.0.0.1:$PORT" \
     --input-sink hue-jack-dev-in --output hue-jack-dev-out >"$WORK/serve.log" 2>&1 &
 PIDS+=("$!")
 sleep 1

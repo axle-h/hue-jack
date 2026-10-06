@@ -6,6 +6,11 @@ Before starting, read `docs/STATUS.md` for anything the build left untested or c
 
 ## H0: before you start
 - [ ] If `STATUS.md` says the GHCR package is private, make it public at `https://github.com/users/axle-h/packages/container/hue-jack/settings`. It only matters for future `bootc upgrade`s.
+- [ ] Build dependencies on the dev machine (the build couldn't install these; it used extracted headers):
+  ```sh
+  sudo dnf install pipewire-devel clang-devel dbus-devel openssl-devel
+  (cd web && npm ci && npm run build)    # so the web UI is embedded in local builds
+  ```
 - [ ] Bulbs powered on (wall switches on), and visible in the Hue app.
 - [ ] In the Hue app: Settings → Entertainment areas. Make sure there's an area containing the lights you want (**max 10 colour lights**), positioned roughly where they are in the room. Name it e.g. `hue-jack`.
 - [ ] Close the Hue Sync app or desktop app if open. Only one entertainment stream can run at once.
@@ -33,11 +38,15 @@ cargo run --release -p hue-jack -- test-pattern --area <id> --pattern strobe --s
 ## H3: full pipeline on the dev machine (no NUC yet)
 ```sh
 cargo run --release -p hue-jack -- gen-test-audio test-audio
-tools/passthrough-test.sh                       # sanity check: delay measured correctly
+tools/passthrough-test.sh                       # sanity check: delay measured correctly (creates and removes its own sinks)
+tools/dev-sinks.sh up                           # dedicated null sinks hue-jack-dev-in / hue-jack-dev-out
 cargo run --release -p hue-jack -- serve --input-sink hue-jack-dev-in --output hue-jack-dev-out
 # in another terminal:
 pw-play --target hue-jack-dev-in test-audio/drums_128.wav
+# afterwards:
+tools/dev-sinks.sh down
 ```
+Don't pass `--sources` on the dev machine: it registers a Bluetooth pairing agent and watches (and pauses) desktop media players.
 - [ ] Open `http://localhost:8080`, select the area, pick `pulse`. The bulbs react to the drums.
 - [ ] Try `spectrum` and `chase` too, and play some real music through the dev sink (e.g. `pw-play` on any local file).
 - [ ] After about 20 s of silence the stream stops and the lights return to normal.
@@ -69,7 +78,7 @@ sudo dd if=~/Downloads/hue-jack-iso/install.iso of=/dev/sdX bs=4M status=progres
 - [ ] Select the area. Run the test pattern from the UI.
 
 ## H7: Bluetooth + calibration
-- [ ] UI → Bluetooth → "Pair new device". On the phone, pair with **hue-jack**. It should pair with no PIN and show as a speaker or headphones, **not** as a hands-free or call device.
+- [ ] UI → Bluetooth → "Pair new device". On the phone, pair with **hue-jack**. It should pair with no PIN (the phone may show a code to confirm: tap Pair; hue-jack accepts automatically while the window is open) and show as a speaker or headphones, **not** as a hands-free or call device.
 - [ ] Play music from any app (e.g. Amazon Music). Sound comes from the speakers and the lights react.
 - [ ] The phone's volume buttons change the NUC's output volume.
 - [ ] UI → Calibration on. Adjust the `D` slider until the click and the flash coincide. Calibration off.
@@ -102,4 +111,5 @@ ssh alex@hue-jack.local 'sudo bootc rollback && sudo systemctl reboot'
 | Lights stutter | Bridge Wi-Fi/Zigbee interference; lower the effect speed; check the packet rate in `/api/status` |
 | No sound on the NUC | `wpctl status`: hue-jack's playback node is linked to `alsa_output…`; volume not 0; `output` in state.json |
 | Phone doesn't see hue-jack over BT | Pairing window still open? `bluetoothctl show` → Discoverable yes; `rfkill list` |
-| Not in the cast menu | Phone and NUC on the same subnet; SSDP multicast not blocked by the AP (client isolation off) |
+| Not in the cast menu | Phone and NUC on the same subnet; SSDP multicast not blocked by the AP (client isolation off); `curl http://hue-jack.local:8098/ytcr/ssdp/device-desc.xml` answers |
+| Bluetooth section says unavailable | `hue-jack.service` runs with `--sources`; `journalctl _SYSTEMD_USER_UNIT=hue-jack.service` for BlueZ / D-Bus policy errors |
