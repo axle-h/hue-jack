@@ -609,7 +609,7 @@ pub fn engine_thread(
             let mut last_data = Instant::now();
             let mut activity = Activity::default();
             let mut idle_stop = 20.0;
-            let mut last_ws = f64::MIN;
+            let mut next_ws = f64::MIN;
             let mut onset_since_ws = 0.0f32;
             while !stop.load(Ordering::Relaxed) {
                 let n = ring.slots() - ring.slots() % audio::CHANNELS;
@@ -661,9 +661,13 @@ pub fn engine_thread(
                         continue;
                     };
                     *app.frames.lock().unwrap() = rendered.frame.clone();
-                    if rendered.t - last_ws >= WS_PERIOD_SECS - 1e-6 && app.ws.receiver_count() > 0
-                    {
-                        last_ws = rendered.t;
+                    if rendered.t >= next_ws - 1e-6 && app.ws.receiver_count() > 0 {
+                        // A 50 ms schedule on the 20 ms frame grid: 20 messages/s on average.
+                        next_ws = if rendered.t - next_ws > 1.0 {
+                            rendered.t + WS_PERIOD_SECS
+                        } else {
+                            next_ws + WS_PERIOD_SECS
+                        };
                         let live = LiveFrame {
                             levels: Levels {
                                 rms_db: f.rms_db,
