@@ -13,10 +13,10 @@ State after the unattended build on 2026-10-06. Everything below "Untested on ha
 | M4 effects, engine, simulate | done | Deterministic frames, attack/decay envelope never exceeded, brightness cap respected, calibration flashes, test patterns; `simulate` writes a valid preview for drums_128 with every effect (30 s clip, 1500 frames) |
 | M5 daemon, web UI, calibration | done | End-to-end (CI): file audio + fake bridge: `start` ≈ 1 s in, ≥ 45 packets/s during drums, `stop` after the idle period, `start` again, clean `stop` on SIGTERM. API tests for every endpoint and the WebSocket. Locally, `serve --virtual` between dev sinks: UI served, `/ws` at 20 Hz with moving virtual lights (`tools/virtual-ws-check.sh`; no screenshot, the Chrome extension wasn't connected) |
 | M6 sources | done (no hardware) | Bluetooth window/agent state machine and API tested with a mock adapter; MPRIS mapping and the ytcr client tested; arbitration tested. ytcr sidecar: 44 unit tests; local smoke test resolved and played a public video (itag 251 via YTMUSIC) into a dev sink and answered DIAL + SSDP for < 60 s |
-| M7 OS image, GHCR, ISO | done | Image builds in CI and passes its smoke test (`hue-jack --version`, `shairport-sync -V` shows AirPlay2); local `podman build` passed (with the M0 binary) including `bootc container lint`. Anonymous pull works (`skopeo inspect --no-creds docker://ghcr.io/axle-h/hue-jack:latest`), so the package is public: no H0 step needed |
+| M7 OS image, GHCR, ISO | done | Image builds in CI and passes its smoke test (`hue-jack --version`, `shairport-sync -V` shows AirPlay2); a local `podman build -f os/Containerfile -t localhost/hue-jack:dev .` with the final code passed, including `bootc container lint` (13 checks passed, 1 warning: a file under `/var` from the base image), and `hue-jack --version` and `shairport-sync -V` (`5.5.2-AirPlay2-…-PipeWire-…-mpris`) run in it. Anonymous pull works (`skopeo inspect --no-creds docker://ghcr.io/axle-h/hue-jack:latest`), so the package is public: no H0 step needed |
 | M8 wrap-up | done | This file, runbook updates, all workflows green |
 
-Latest ISO: ISO_RUN_PLACEHOLDER
+Latest ISO: run [37395655502](https://github.com/axle-h/hue-jack/actions/runs/37395655502), artifact `hue-jack-iso` (`install.iso`, 2.46 GB, expires 2026-10-20), built from the image of commit `bd6a371` (M6; later commits only touched docs and dev scripts). Download with `gh run download -R axle-h/hue-jack 37395655502 -n hue-jack-iso -D ~/Downloads/hue-jack-iso`.
 
 ## Test results
 
