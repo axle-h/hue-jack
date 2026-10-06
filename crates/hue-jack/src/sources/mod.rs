@@ -147,9 +147,75 @@ impl Sources {
     }
 }
 
-/// Starts the source watchers (MPRIS on the session bus, the YouTube sidecar) on the current runtime.
-pub fn start_watchers(sources: Arc<Sources>, _bluetooth: Option<Arc<bluetooth::Bluetooth>>) {
-    let _ = sources;
+/// Starts the source watchers on the current runtime: MPRIS players on the session bus
+/// (Bluetooth via `mpris-proxy`, AirPlay via shairport-sync) and the YouTube sidecar, with
+/// arbitration (a source that starts playing pauses the others).
+pub fn start_watchers(sources: Arc<Sources>) {
+    tokio::spawn(async move {
+        let socket = ytcr::socket_path();
+        let mut bus: Option<mpris::Mpris> = None;
+        let mut tick = tokio::time::interval(std::time::Duration::from_secs(1));
+        let mut warned = false;
+        loop {
+            tick.tick().await;
+            if bus.is_none() {
+                match mpris::Mpris::connect().await {
+                    Ok(b) => bus = Some(b),
+                    Err(e) if !warned => {
+                        tracing::warn!("session bus unavailable for MPRIS: {e:#}");
+                        warned = true;
+                    }
+                    Err(_) => {}
+                }
+            }
+            let mut pauses = Vec::new();
+            if let Some(b) = &bus {
+                match b.players().await {
+                    Ok(players) => {
+                        let ids: Vec<String> = players
+                            .iter()
+                            .map(|(n, _)| format!("{}{n}", mpris::ID_PREFIX))
+                            .collect();
+                        for (name, props) in &players {
+                            if let Arbitration::Pause(ids) =
+                                sources.update(mpris::to_source(name, props))
+                            {
+                                pauses.extend(ids);
+                            }
+                        }
+                        sources.retain_kind(SourceKind::Bluetooth, &ids);
+                        sources.retain_kind(SourceKind::Airplay, &ids);
+                    }
+                    Err(e) => {
+                        tracing::warn!("listing MPRIS players: {e:#}");
+                        bus = None;
+                    }
+                }
+            }
+            match ytcr::status(&socket).await {
+                Ok(st) => {
+                    if let Arbitration::Pause(ids) = sources.update(ytcr::to_source(&st)) {
+                        pauses.extend(ids);
+                    }
+                }
+                Err(_) => sources.remove(ytcr::ID),
+            }
+            for id in pauses {
+                tracing::info!(source = id, "pausing: another source started playing");
+                let result = match id.strip_prefix(mpris::ID_PREFIX) {
+                    Some(name) => match &bus {
+                        Some(b) => b.pause(name).await,
+                        None => Ok(()),
+                    },
+                    None if id == ytcr::ID => ytcr::pause(&socket).await,
+                    None => Ok(()),
+                };
+                if let Err(e) = result {
+                    tracing::warn!(source = id, "pause failed: {e:#}");
+                }
+            }
+        }
+    });
 }
 
 #[cfg(test)]

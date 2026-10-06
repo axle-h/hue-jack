@@ -59,9 +59,11 @@ pub struct ServeArgs {
     /// Seconds of silence before the stream stops (overrides state.json for this run).
     #[arg(long)]
     pub idle_stop_secs: Option<u32>,
-    /// Don't start the source watchers (MPRIS, YouTube sidecar) or Bluetooth.
-    #[arg(long)]
-    pub no_sources: bool,
+    /// Start Bluetooth (pairing agent, adapter control) and the source watchers (MPRIS on the
+    /// session bus, the YouTube sidecar). Off by default so a dev run never touches the desktop's
+    /// Bluetooth adapter or media players; the appliance's unit turns it on.
+    #[arg(long, env = "HUEJACK_SOURCES")]
+    pub sources: bool,
 }
 
 /// Settings as the API shows them.
@@ -823,10 +825,10 @@ pub fn run(g: &GlobalArgs, args: ServeArgs) -> Result<()> {
     let rt = crate::cli::runtime()?;
     rt.block_on(async move {
         let image = image_info().await;
-        let bluetooth = if args.no_sources {
-            None
-        } else {
+        let bluetooth = if args.sources {
             crate::sources::bluetooth::start().await
+        } else {
+            None
         };
         let (app, rx) = App::new(AppParts {
             global: g.clone(),
@@ -842,8 +844,8 @@ pub fn run(g: &GlobalArgs, args: ServeArgs) -> Result<()> {
         let stop = Arc::new(AtomicBool::new(false));
         let engine = engine_thread(app.clone(), ring, stop.clone())?;
         let ctl = tokio::spawn(controller(app.clone(), rx));
-        if !args.no_sources {
-            crate::sources::start_watchers(app.sources.clone(), app.bluetooth.clone());
+        if args.sources {
+            crate::sources::start_watchers(app.sources.clone());
         }
         // Learn the selected area's channel layout.
         if app.state.lock().unwrap().bridge.is_some() {

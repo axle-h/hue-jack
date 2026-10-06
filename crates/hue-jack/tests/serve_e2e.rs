@@ -59,7 +59,6 @@ async fn drums_gap_drums() {
         ])
         .args([
             "serve",
-            "--no-sources",
             "--output",
             "null",
             "--listen",

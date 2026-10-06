@@ -10,7 +10,7 @@ After=pipewire.service wireplumber.service
 Type=simple
 Environment=HUEJACK_STATE_DIR=/var/lib/hue-jack
 Environment=RUST_LOG=info
-ExecStart=/usr/bin/hue-jack serve --listen 0.0.0.0:80
+ExecStart=/usr/bin/hue-jack serve --listen 0.0.0.0:80 --sources
 Restart=on-failure
 RestartSec=2s
 RestartSteps=5

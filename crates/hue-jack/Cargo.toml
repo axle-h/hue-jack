@@ -46,4 +46,5 @@ zbus = { version = "5.19.0", default-features = false, features = ["tokio"] }
 fake-bridge = { path = "../fake-bridge" }
 tokio = { version = "1.53.2", features = ["full", "test-util"] }
 tower = { version = "0.5", features = ["util"] }
+bluer = { version = "0.17.4", features = ["bluetoothd"] }
 tokio-tungstenite = "0.28"
