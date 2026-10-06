@@ -38,7 +38,7 @@ trap cleanup EXIT
 
 step() { printf '\n== %s\n' "$*"; }
 
-npm run -s build
+pnpm -s run build
 
 step "1. resolve $VIDEO_ID"
 node dist/resolve.js "$VIDEO_ID" >"$WORK/info.json"

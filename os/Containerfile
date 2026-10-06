@@ -2,8 +2,9 @@
 #
 #   podman build -f os/Containerfile -t localhost/hue-jack:dev .
 #
-# Stages: "airplay" builds nqptp + shairport-sync (AirPlay 2) from source, "app" builds hue-jack
-# (web UI embedded) and the ytcr sidecar, and the final stage is the bootable image.
+# Stages: "airplay" builds nqptp + shairport-sync (AirPlay 2) from source, "js" builds the web UI
+# and the ytcr sidecar with pnpm, "app" builds hue-jack (web UI embedded), and the final stage is
+# the bootable image.
 
 # ---------------------------------------------------------------------------------------------
 # AirPlay 2: Fedora's shairport-sync package is built without AirPlay 2 or MPRIS, and nqptp isn't
@@ -40,33 +41,39 @@ RUN git clone --depth 1 --branch "${SHAIRPORT_SYNC_VERSION}" https://github.com/
     && /out/usr/bin/shairport-sync -V | grep -q AirPlay2
 
 # ---------------------------------------------------------------------------------------------
-# hue-jack (Rust, web UI embedded) and the ytcr sidecar (Node).
+# Web UI and ytcr sidecar (pnpm workspace). Upstream Node rather than Fedora's: `pnpm deploy`
+# segfaults on Fedora 44's nodejs24 (24.18). The output is plain JS, so it runs on the image's
+# Fedora Node.
+FROM docker.io/library/node:24-slim AS js
+
+WORKDIR /src
+
+# pnpm, at the exact version (and sha512) pinned by `packageManager` in package.json.
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
+RUN COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack enable pnpm && pnpm --version
+
+# Fetch dependencies first (by lockfile only), so they're cached while the sources change.
+RUN pnpm fetch --frozen-lockfile
+
+COPY web/ web/
+COPY ytcr/ ytcr/
+RUN pnpm install --frozen-lockfile --offline \
+    && pnpm -r run build \
+    && pnpm --filter hue-jack-ytcr deploy --prod --offline /out/ytcr
+
+# ---------------------------------------------------------------------------------------------
+# hue-jack (Rust, web UI embedded).
 FROM quay.io/fedora/fedora:44 AS app
 
 RUN dnf install -y --setopt=install_weak_deps=False \
         rust cargo gcc pkgconf-pkg-config clang-devel \
-        pipewire-devel openssl-devel dbus-devel \
-        nodejs24 nodejs24-bin nodejs24-npm nodejs24-npm-bin git-core \
+        pipewire-devel openssl-devel dbus-devel git-core \
     && dnf clean all
 
 WORKDIR /src
 
-# Dependencies first, so they're cached while the sources change.
-COPY web/package.json web/package-lock.json web/
-RUN cd web && npm ci --no-audit --no-fund
-COPY ytcr/package.json ytcr/package-lock.json ytcr/
-RUN cd ytcr && npm ci --no-audit --no-fund
-
 COPY . .
-
-RUN cd web && npm run build
-
-# ytcr: build, then keep only production dependencies.
-RUN cd ytcr \
-    && npm run build \
-    && rm -rf node_modules \
-    && npm ci --omit=dev --no-audit --no-fund \
-    && mkdir -p node_modules
+COPY --from=js /src/web/dist web/dist
 
 RUN --mount=type=cache,target=/root/.cargo/registry \
     --mount=type=cache,target=/root/.cargo/git \
@@ -96,9 +103,7 @@ RUN dnf install -y \
 
 COPY --from=airplay /out/usr/bin/ /usr/bin/
 COPY --from=app /out/usr/bin/hue-jack /usr/bin/hue-jack
-COPY --from=app /src/ytcr/package.json /usr/lib/hue-jack/ytcr/package.json
-COPY --from=app /src/ytcr/dist /usr/lib/hue-jack/ytcr/dist
-COPY --from=app /src/ytcr/node_modules /usr/lib/hue-jack/ytcr/node_modules
+COPY --from=js /out/ytcr/ /usr/lib/hue-jack/ytcr/
 COPY os/rootfs/ /
 
 # - huejack needs the "audio" group for ALSA. On bootc that group is in /usr/lib/group

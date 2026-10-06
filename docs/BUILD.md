@@ -114,8 +114,7 @@ Each milestone ends with its acceptance checks passing locally *and* in CI (wher
 - Cargo workspace, crates, `web/` (Vite TS + Preact), `ytcr/` (TS, `tsc` build, `vitest`), README, CLAUDE.md is already present, `.gitignore`.
 - `.github/workflows/ci.yml` (push + PR):
   - **rust** job in `container: fedora:44`: `dnf install -y rust cargo clippy rustfmt pipewire-devel clang-devel openssl-devel dbus-devel pkgconf-pkg-config`, then `cargo fmt --check`, `cargo clippy -D warnings`, `cargo test --workspace`.
-  - **web**: `npm ci && npm run build && npm test`.
-  - **ytcr**: `npm ci && npm run build && npm test`.
+  - **node** (pnpm workspace `web` + `ytcr`, one lockfile): `pnpm install --frozen-lockfile && pnpm -r run build && pnpm -r test`.
 - **Accept:** CI green on `main`.
 
 ### M1: Hue client + fake bridge
@@ -204,7 +203,7 @@ Each milestone ends with its acceptance checks passing locally *and* in CI (wher
 
 ### M7: OS image, GHCR and ISO
 `os/Containerfile`, multi-stage:
-1. **Builder stage** `FROM quay.io/fedora/fedora:44`: build hue-jack in release mode (after `npm ci && npm run build` in `web/`), build the `ytcr` dist + production `node_modules`, and build nqptp (and shairport-sync if needed).
+1. **Builder stage** `FROM quay.io/fedora/fedora:44`: build hue-jack in release mode (after `pnpm --filter hue-jack-web build`), build the `ytcr` dist and `pnpm deploy --prod` it, and build nqptp (and shairport-sync if needed).
 2. **Final stage** `FROM quay.io/fedora/fedora-bootc:44`:
    - `dnf install` pipewire, wireplumber, pipewire-pulseaudio, pipewire-alsa, bluez, avahi, nss-mdns, mpv, nodejs, shairport-sync (unless built from source), alsa-utils, then `dnf clean all`.
    - Copy the binaries, `ytcr`, and `os/rootfs/`.

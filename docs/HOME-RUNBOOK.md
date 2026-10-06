@@ -6,10 +6,9 @@ Before starting, read `docs/STATUS.md` for anything the build left untested or c
 
 ## H0: before you start
 - [ ] If `STATUS.md` says the GHCR package is private, make it public at `https://github.com/users/axle-h/packages/container/hue-jack/settings`. It only matters for future `bootc upgrade`s.
-- [ ] Build dependencies on the dev machine (the build couldn't install these; it used extracted headers):
+- [ ] Web UI built on the dev machine, so local builds embed it (the build packages are already installed):
   ```sh
-  sudo dnf install pipewire-devel clang-devel dbus-devel openssl-devel
-  (cd web && npm ci && npm run build)    # so the web UI is embedded in local builds
+  pnpm install && pnpm --filter hue-jack-web build
   ```
 - [ ] Bulbs powered on (wall switches on), and visible in the Hue app.
 - [ ] In the Hue app: Settings → Entertainment areas. Make sure there's an area containing the lights you want (**max 10 colour lights**), positioned roughly where they are in the room. Name it e.g. `hue-jack`.

@@ -47,7 +47,6 @@ Latest ISO: run [37395655502](https://github.com/axle-h/hue-jack/actions/runs/37
 - The pairing agent is DisplayYesNo rather than NoInputNoOutput (a `bluer` limitation; see DECISIONS.md). Phones may show a code to confirm; it's accepted automatically while the window is open.
 - Bluetooth and the source watchers only run with `serve --sources` (the appliance unit passes it); plain dev runs never touch the desktop's adapter or media players.
 - Source metadata and arbitration poll once a second, so pausing the previous source can lag by up to a second.
-- `npm audit` reports 5 moderate advisories in `yt-cast-receiver`'s dependencies (uuid, query-string); accepted for a LAN-only appliance.
+- `pnpm audit` reports 2 moderate advisories, both in `yt-cast-receiver`'s dependencies (`uuid` via `peer-dial`, `decode-uri-component` via `query-string`); accepted for a LAN-only appliance.
 - YouTube stream access changes often; the sidecar now tries clients in a chain and plays through a local range proxy (see DECISIONS.md). Expect to update `youtubei.js` from time to time.
-- Dev-machine toolchain: the machine lacks `pipewire-devel`/`clang-devel`, so the build used headers extracted from the RPM into `~/.local/share/hue-jack-devroot` (`PKG_CONFIG_PATH`), and a pinned `rustup` toolchain `1.98.0` (CI's Fedora Rust version, for clippy parity) was installed alongside the default `stable`. Both can be removed; HOME-RUNBOOK H0 installs the real packages.
-- The CI Fedora container's Rust (1.98) is newer than the dev machine's (1.96), so new clippy lints can appear in CI first.
+- Dev machine: build packages are installed natively (`pipewire-devel clang-devel dbus-devel openssl-devel`), with rustup `stable` only. CI builds with Fedora 44's packaged Rust (1.98), which can lag the dev machine's stable (1.99 as of 2026-10-06), so a lint from a newer clippy may show up locally before CI.

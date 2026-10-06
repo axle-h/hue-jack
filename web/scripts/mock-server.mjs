@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Dev-only fake hue-jack daemon: serves /api and /ws with made-up data so the UI can be eyeballed with
-// `npm run dev`. Usage: `node scripts/mock-server.mjs` (port 8080, or MOCK_PORT), then
-// `HUEJACK_API=http://127.0.0.1:<port> npm run dev`. No dependencies; the WebSocket server is minimal.
+// `pnpm dev`. Usage: `node scripts/mock-server.mjs` (port 8080, or MOCK_PORT), then
+// `HUEJACK_API=http://127.0.0.1:<port> pnpm dev`. No dependencies; the WebSocket server is minimal.
 import { createServer } from 'node:http';
 import { createHash } from 'node:crypto';
 

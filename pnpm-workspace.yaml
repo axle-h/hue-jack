@@ -1,0 +1,7 @@
+packages:
+  - web
+  - ytcr
+
+# Supply-chain hardening.
+# Don't resolve versions published less than a day ago (minutes).
+minimumReleaseAge: 1440

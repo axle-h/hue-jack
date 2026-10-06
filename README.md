@@ -20,10 +20,10 @@ Everything stays on the LAN.
 
 ## Develop
 
-Needs Fedora with `rust cargo pipewire-devel clang-devel openssl-devel dbus-devel` and Node 24+.
+Needs Fedora with `pipewire-devel clang-devel openssl-devel dbus-devel`, Rust stable, Node 24+ and pnpm (the version is pinned by `packageManager` in `package.json`; `corepack enable pnpm` picks it up).
 
 ```sh
-(cd web && npm ci && npm run build)          # optional: embed the real UI (else a placeholder page)
+pnpm install && pnpm -r run build               # web UI (embedded by cargo; else a placeholder page) + ytcr sidecar
 cargo test --workspace
 cargo run -p hue-jack -- gen-test-audio test-audio
 cargo run -p hue-jack -- simulate test-audio/drums_128.wav --out preview.html --effect pulse

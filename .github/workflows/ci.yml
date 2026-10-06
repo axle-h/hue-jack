@@ -30,34 +30,17 @@ jobs:
       - name: Analysis of 60 s runs in under 1 s (release)
         run: cargo test --release -p hue-jack --test analysis -- --ignored perf --nocapture
 
-  web:
+  node:
+    name: web + ytcr (pnpm)
     runs-on: ubuntu-24.04
-    defaults:
-      run:
-        working-directory: web
     steps:
       - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4   # version from packageManager in package.json
       - uses: actions/setup-node@v5
         with:
           node-version: 24
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-      - run: npm ci
-      - run: npm run build
-      - run: npm test
-
-  ytcr:
-    runs-on: ubuntu-24.04
-    defaults:
-      run:
-        working-directory: ytcr
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: npm
-          cache-dependency-path: ytcr/package-lock.json
-      - run: npm ci
-      - run: npm run build
-      - run: npm test
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm -r run build
+      - run: pnpm -r test

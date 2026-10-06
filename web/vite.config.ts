@@ -2,7 +2,7 @@
 import { defineConfig } from 'vite';
 import preact from '@preact/preset-vite';
 
-// `npm run dev` proxies the API to a running hue-jack (or scripts/mock-server.mjs).
+// `pnpm dev` proxies the API to a running hue-jack (or scripts/mock-server.mjs).
 const api = process.env.HUEJACK_API ?? 'http://127.0.0.1:8080';
 
 export default defineConfig({

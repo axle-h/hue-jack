@@ -13,6 +13,9 @@ on:
       - ytcr/**
       - Cargo.toml
       - Cargo.lock
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
       - .containerignore
       - .github/workflows/image.yml
   pull_request:
@@ -23,6 +26,9 @@ on:
       - ytcr/**
       - Cargo.toml
       - Cargo.lock
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
       - .containerignore
       - .github/workflows/image.yml
   workflow_dispatch:

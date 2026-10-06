@@ -9,7 +9,7 @@ A self-contained music→Hue light appliance on an Intel NUC6i3SYB driving power
 | Thing | Value |
 |---|---|
 | Hue bridge | **Hue Bridge v2 (square), `modelid=BSB002`**, IP **10.0.0.166**, mDNS `ecb5faa77674.local`, `bridgeid=ecb5fafffea77674`, `apiversion 1.78.0`, `swversion 1978293000`. CLIP v2 is present (unauthenticated requests return 403). **Not yet paired.** |
-| Dev machine | Fedora 44, 10.0.0.161 (`enp13s0`). Rust 1.96, Node 26, podman 5.8, PipeWire (desktop session in use), BlueZ 5.87, gh (account `axle-h`, git over SSH) |
+| Dev machine | Fedora 44, 10.0.0.161 (`enp13s0`). Rust stable (rustup), Node 26, pnpm 11, podman 5.8, PipeWire (desktop session in use), BlueZ 5.87, gh (account `axle-h`, git over SSH) |
 | Appliance | Intel NUC6i3SYB: i3-6100U, Intel 8260 Wi-Fi/BT 4.2, gigabit Ethernet, front 3.5 mm jack → **powered speakers** |
 | Repo | `github.com/axle-h/hue-jack` (public); OS image `ghcr.io/axle-h/hue-jack` |
 | Fedora 44 packages | `shairport-sync 4.3.7` (check it was built with AirPlay 2 support), `mpv 0.41`, `bluez 5.87` (ships `mpris-proxy`), `pipewire-devel 1.6.9`. **`nqptp` is not packaged**, so build it from source. |
