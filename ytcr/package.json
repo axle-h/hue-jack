@@ -12,11 +12,20 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "node dist/main.js",
-    "test": "vitest run"
+    "test": "tsc -p tsconfig.test.json && vitest run",
+    "resolve": "node dist/resolve.js"
   },
   "devDependencies": {
-    "@types/node": "^26.6.4",
+    "@types/jsdom": "^21.1.7",
+    "@types/node": "^24.19.1",
     "typescript": "^7.0.2",
     "vitest": "^5.0.3"
+  },
+  "dependencies": {
+    "bgutils-js": "^4.0.3",
+    "happy-dom": "^20.14.5",
+    "jsdom": "^26.1.0",
+    "youtubei.js": "^18.1.0",
+    "yt-cast-receiver": "^2.1.0"
   }
 }
