@@ -27,6 +27,8 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
+      - name: Analysis of 60 s runs in under 1 s (release)
+        run: cargo test --release -p hue-jack --test analysis -- --ignored perf --nocapture
 
   web:
     runs-on: ubuntu-24.04

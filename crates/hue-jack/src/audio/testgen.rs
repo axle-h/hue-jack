@@ -24,7 +24,15 @@ impl Noise {
 
 fn add(buf: &mut [f32], at: f64, sound: &[f32]) {
     let start = (at * SAMPLE_RATE as f64).round() as usize;
+    // 10 ms fade-out so a truncated decay doesn't add a click of its own.
+    let fade = (SR * 0.01) as usize;
+    let n = sound.len();
     for (i, s) in sound.iter().enumerate() {
+        let s = if i + fade > n {
+            s * (n - i) as f32 / fade as f32
+        } else {
+            *s
+        };
         if let Some(b) = buf.get_mut(start + i) {
             *b += s;
         }
@@ -160,12 +168,13 @@ pub fn sweep(secs: f64) -> Vec<f32> {
         .collect()
 }
 
-/// `drums` (128 BPM) for `a` s, silence for `gap` s, drums for `b` s; mono. Returns samples and (gap start, gap end).
+/// `drums` (128 BPM) for `a` s, silence for `gap` s, drums for `b` s; mono. Returns samples and the
+/// silent interval (the second segment's first sound is 0.25 s into it).
 pub fn silence_gap(a: f64, gap: f64, b: f64) -> (Vec<f32>, (f64, f64)) {
     let (mut buf, _) = drums(a, 128.0);
     buf.resize(((a + gap) * SAMPLE_RATE as f64) as usize, 0.0);
     buf.extend(drums(b, 128.0).0);
-    (buf, (a, a + gap))
+    (buf, (a, a + gap + 0.25))
 }
 
 fn stereo(mono: &[f32]) -> Vec<f32> {

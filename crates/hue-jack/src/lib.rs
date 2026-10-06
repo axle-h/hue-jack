@@ -11,6 +11,8 @@ pub mod engine;
 pub mod hue;
 pub mod serve;
 pub mod simulate;
+pub mod sources;
 pub mod state;
+pub mod web;
 
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");

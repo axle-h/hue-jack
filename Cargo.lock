@@ -1025,6 +1025,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-tungstenite 0.28.0",
+ "tower",
  "tracing",
  "tracing-subscriber",
  "zbus",

@@ -1,0 +1,1 @@
+//! MPRIS watcher (M6).
