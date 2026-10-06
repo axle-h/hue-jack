@@ -148,9 +148,12 @@ pub fn spawn_capture(target: &str, capture: CaptureProcessor) -> Result<PwHandle
         let listener = stream
             .add_local_listener_with_user_data(state)
             .process(|stream, state| {
+                // The samples in a sink monitor's buffer are what passed through the sink in this
+                // cycle, so they were "captured" now. (The monitor's reported delay is the latency
+                // upstream of the sink, which affects sound and light equally and is ignored.)
                 let now = stream
                     .time()
-                    .map(|t| t.now() - delay_ns(&t))
+                    .map(|t| t.now())
                     .unwrap_or_else(|_| super::monotonic_ns());
                 let Some(mut buffer) = stream.dequeue_buffer() else {
                     return;
@@ -211,14 +214,20 @@ pub fn spawn_playback(target: &str, reader: DelayReader) -> Result<PwHandle> {
         let listener = stream
             .add_local_listener_with_user_data(reader)
             .process(|stream, reader| {
-                let play_ns = stream
-                    .time()
-                    .map(|t| t.now() + delay_ns(&t))
-                    .unwrap_or_else(|_| super::monotonic_ns());
                 let Some(mut buffer) = stream.dequeue_buffer() else {
                     return;
                 };
                 let requested = buffer.requested() as usize;
+                // This buffer is heard after the device delay and after any buffers already queued.
+                let play_ns = stream
+                    .time()
+                    .map(|t| {
+                        let quantum = if requested > 0 { requested } else { 256 } as i64;
+                        t.now()
+                            + delay_ns(&t)
+                            + super::frames_to_ns(t.queued_buffers() as i64 * quantum)
+                    })
+                    .unwrap_or_else(|_| super::monotonic_ns());
                 let data = &mut buffer.datas_mut()[0];
                 let stride = CHANNELS * 4;
                 let mut frames = 0;

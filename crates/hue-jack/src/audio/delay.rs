@@ -24,6 +24,9 @@ const DRIFT_STOP: i64 = SAMPLE_RATE as i64 / 2000;
 const DRIFT_STEP: i64 = SAMPLE_RATE as i64 / 100;
 /// Beyond this the reader resynchronises (with a crossfade) instead of nudging.
 const RESYNC: i64 = SAMPLE_RATE as i64 / 10;
+/// A jump in error between consecutive blocks larger than this is a re-anchoring (the graph's
+/// reported latency changed, e.g. when nodes are regrouped), not drift: resynchronise at once.
+const STEP: i64 = SAMPLE_RATE as i64 / 1000;
 
 /// Statistics for `/api/status`.
 #[derive(Debug, Default)]
@@ -133,6 +136,7 @@ pub struct DelayReader {
     fade_left: i64,
     correcting: bool,
     since_correction: i64,
+    prev_error: Option<i64>,
 }
 
 /// Creates a delay line with an initial delay.
@@ -160,6 +164,7 @@ pub fn delay_line(delay_ms: u32) -> (DelayWriter, DelayReader, DelayControl) {
         fade_left: 0,
         correcting: false,
         since_correction: 0,
+        prev_error: None,
     };
     (DelayWriter { shared, written: 0 }, reader, control)
 }
@@ -193,7 +198,10 @@ impl DelayReader {
             Some(pos) => pos,
         };
         let mut error = desired - pos;
-        if error.abs() > RESYNC {
+        let stepped = self
+            .prev_error
+            .is_some_and(|prev| (error - prev).abs() > STEP);
+        if error.abs() > RESYNC || (stepped && error.abs() > DRIFT_STOP) {
             self.start_fade(pos);
             pos = desired;
             error = 0;
@@ -240,6 +248,7 @@ impl DelayReader {
             s.stats.underruns.fetch_add(1, Ordering::Relaxed);
         }
         self.pos = Some(pos);
+        self.prev_error = Some(error);
         s.stats
             .fill_frames
             .store(written as i64 - pos, Ordering::Relaxed);
@@ -371,6 +380,29 @@ mod tests {
         let error = control.stats().error_frames.load(Ordering::Relaxed);
         assert!(error.abs() <= DRIFT_START + 2, "error {error} frames");
         assert!(control.stats().drift_corrections.load(Ordering::Relaxed) > 0);
+    }
+
+    #[test]
+    fn latency_step_resyncs_quickly() {
+        // The capture side's reported latency jumps by 256 frames: the reader follows within a block.
+        let (mut w, mut r, control) = delay_line(150);
+        let ramp = |n: u64| (n % 10_000) as f32;
+        let mut out = vec![0.0f32; 512];
+        let mut got = Vec::new();
+        for block in 0..400u64 {
+            let start = block * 256;
+            let frames: Vec<f32> = (start..start + 256).flat_map(|i| [ramp(i); 2]).collect();
+            let shift = if block >= 200 { 256 } else { 0 }; // capture now reported 256 frames earlier
+            w.write(&frames, frames_to_ns(start as i64 - shift));
+            r.read(&mut out, frames_to_ns(start as i64));
+            got.extend(out.as_chunks::<2>().0.iter().map(|f| f[0]));
+        }
+        assert_eq!(control.stats().resyncs.load(Ordering::Relaxed), 1);
+        // Well after the step, output = input delayed by D - 256 frames (the capture was older than assumed).
+        let d = 150 * 48 - 256;
+        for (i, &v) in got.iter().enumerate().skip(260 * 256) {
+            assert_eq!(v, ramp((i - d) as u64), "frame {i}");
+        }
     }
 
     #[test]
