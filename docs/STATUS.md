@@ -16,7 +16,7 @@ State after the unattended build on 2026-10-06. Everything below "Untested on ha
 | M7 OS image, GHCR, ISO | done | Image builds in CI and passes its smoke test (`hue-jack --version`, `shairport-sync -V` shows AirPlay2); a local `podman build -f os/Containerfile -t localhost/hue-jack:dev .` with the final code passed, including `bootc container lint` (13 checks passed, 1 warning: a file under `/var` from the base image), and `hue-jack --version` and `shairport-sync -V` (`5.5.2-AirPlay2-…-PipeWire-…-mpris`) run in it. Anonymous pull works (`skopeo inspect --no-creds docker://ghcr.io/axle-h/hue-jack:latest`), so the package is public: no H0 step needed |
 | M8 wrap-up | done | This file, runbook updates, all workflows green |
 
-Latest ISO: run [37431372375](https://github.com/axle-h/hue-jack/actions/runs/37431372375), artifact `hue-jack-iso` (`install.iso`, 2.46 GB, expires 2026-10-20), built from the image of commit `33618cd` (pnpm port). Download with `gh run download -R axle-h/hue-jack 37431372375 -n hue-jack-iso -D ~/Downloads/hue-jack-iso`.
+Latest ISO: run [37606676324](https://github.com/axle-h/hue-jack/actions/runs/37606676324), artifact `hue-jack-iso` (`install.iso`, 2.46 GB, expires 2026-10-21), built from the image of commit `5267e83` (tempo hold). Download with `gh run download -R axle-h/hue-jack 37606676324 -n hue-jack-iso -D ~/Downloads/hue-jack-iso`.
 
 ## Test results
 
