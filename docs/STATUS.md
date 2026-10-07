@@ -20,7 +20,7 @@ Latest ISO: run [37431372375](https://github.com/axle-h/hue-jack/actions/runs/37
 
 ## Test results
 
-- Rust (`cargo test --workspace`, CI): 41 unit tests; integration tests `hue_fake_bridge` (3), `analysis` (5 + release perf), `simulate` (1), `api` (6), `serve_e2e` (1). `local_readonly` (2, ignored by default) were run on the dev machine: read-only MPRIS listing and Bluetooth adapter enumeration (`hci0`).
+- Rust (`cargo test --workspace`, CI): 44 unit tests; integration tests `hue_fake_bridge` (3), `analysis` (5 + release perf), `simulate` (1), `api` (6), `serve_e2e` (1). `local_readonly` (2, ignored by default) were run on the dev machine: read-only MPRIS listing and Bluetooth adapter enumeration (`hci0`).
 - Web UI: 20 vitest tests (API client, WebSocket client, settings/calibration flow, virtual lights).
 - ytcr: 44 vitest tests (mpv IPC client against a fake socket, format choice 774 > 141 > 251 > 140, stream proxy, control API, config).
 - Local scripts: `tools/passthrough-test.sh`, `tools/soak-test.sh`, `tools/virtual-ws-check.sh` all pass. They use dedicated `hue-jack-dev-*` null sinks and check that the configured default devices don't change.

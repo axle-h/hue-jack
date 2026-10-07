@@ -314,7 +314,10 @@ pub fn analyze_cmd(wav: &Path, csv: Option<&Path>) -> Result<()> {
     let onsets = frames.iter().filter(|f| f.onset > 0.0).count();
     let bass = frames.iter().filter(|f| f.bass_onset > 0.0).count();
     let silent = frames.iter().filter(|f| f.silent).count();
-    let bpm = frames.iter().rev().find_map(|f| f.bpm);
+    // The median over the track: the last estimate is often from a fade-out.
+    let mut bpms: Vec<f32> = frames.iter().filter_map(|f| f.bpm).collect();
+    bpms.sort_by(f32::total_cmp);
+    let bpm = bpms.get(bpms.len() / 2).copied();
     println!(
         "{}: {:.1} s, {} frames analysed in {:.0} ms",
         wav.display(),
