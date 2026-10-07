@@ -35,6 +35,14 @@ Latest ISO: run [37606676324](https://github.com/axle-h/hue-jack/actions/runs/37
 - **Output gamma removed.** The bridge reported a streamed 10 % white as 9.9 % brightness, so it maps RGB linearly onto Hue's already-perceptual brightness scale; the 2.2 gamma darkened everything twice (pulse averaged 20 %). Without it the lights look right (see DECISIONS).
 - `pulse` moves all lights together by design (a 0.3-colour spread across the room); `spectrum` and `chase` differ per light. Port 8080 is taken on the dev machine by an unrelated service, so dev runs use `--listen 127.0.0.1:8090`.
 
+## Verified on the NUC (2026-10-07)
+
+- ISO install (from an SD card in a USB reader, F10 boot menu), `bootc status` on `ghcr.io/axle-h/hue-jack:latest`; all user services running with lingering; `hue-jack-in` is the default sink; `output = auto` picked `alsa_output.pci-0000_00_1f.3.analog-stereo` (ALC283, 3.5 mm). Bridge credentials copied from the dev machine (H6 alternative).
+- `bootc upgrade` + reboot twice (rollback image kept, state survives). `bootc-fetch-apply-updates.timer` is masked, so it never updates on its own.
+- Bluetooth from a Pixel 10 Pro: pairs, plays through the speakers, lights in sync; still working after the upgrade reboot (reconnecting without re-pairing not checked separately). Calibrated `D` ≈ **100 ms** by eye.
+- Drift guard against the real sound card: corrections come in short bursts (≈ 0.7/s on average over a Bluetooth session), 0 underruns.
+- Fixed after this run (needs the next image): the boot race where hue-jack started before the ALSA sink existed (the first start failed, the systemd restart recovered).
+
 ## Verified locally (dev machine, no bulbs)
 
 - mDNS discovery of the real bridge; unauthenticated `GET /api/0/config` (bridge id `ECB5FAFFFEA77674`, certificate CN `ecb5fafffea77674`, compared case-insensitively).

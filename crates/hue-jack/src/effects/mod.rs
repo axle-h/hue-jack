@@ -1,6 +1,7 @@
 //! Effects: render per-channel colours from audio features and channel positions.
 
 pub mod chase;
+pub mod mix;
 pub mod palette;
 pub mod patterns;
 pub mod pulse;
@@ -14,7 +15,7 @@ pub use palette::{PALETTES, Palette, palette};
 /// brightness scale, which is already perceptual, so no gamma is applied on output.
 pub type Rgb = [f32; 3];
 
-pub const EFFECTS: [&str; 3] = ["pulse", "spectrum", "chase"];
+pub const EFFECTS: [&str; 5] = ["pulse", "spectrum", "chase", "cycle", "random"];
 
 /// The audio features for one 20 ms light frame (two analysis frames merged: levels from the
 /// latest, onsets the max of both so none are lost).
@@ -53,6 +54,8 @@ pub fn create(name: &str) -> Option<Box<dyn Effect>> {
         "pulse" => Box::<pulse::Pulse>::default(),
         "spectrum" => Box::<spectrum::Spectrum>::default(),
         "chase" => Box::<chase::Chase>::default(),
+        "cycle" => Box::new(mix::Mix::new(false)),
+        "random" => Box::new(mix::Mix::new(true)),
         _ => return None,
     })
 }

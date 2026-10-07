@@ -121,7 +121,10 @@ async fn status_settings_and_validation() {
     }
     assert_eq!(v["bridge"]["paired"], false);
     assert_eq!(v["stream"]["state"], "idle");
-    assert_eq!(v["effects"], json!(["pulse", "spectrum", "chase"]));
+    assert_eq!(
+        v["effects"],
+        json!(["pulse", "spectrum", "chase", "cycle", "random"])
+    );
     assert_eq!(v["bluetooth"]["available"], false);
     assert!(
         v["palettes"][0]["colors"][0]

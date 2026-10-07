@@ -168,6 +168,7 @@ No off-the-shelf library takes a waveform and produces Hue colours; it's our own
    - `pulse`: all lights breathe with bass; a bass onset flashes to the next palette colour with ~150 ms decay.
    - `spectrum`: channels sorted by x position (left to right) map to bands from low to high; each band's brightness = its energy.
    - `chase`: each onset advances a highlight to the next light in x order; the tail fades out.
+   - `cycle` / `random`: play the three above in order / in random order (never the same twice running), switching on a beat every 16 bars (64 beats) with a 1.5 s crossfade.
 7. **Palettes:** named lists of colours (e.g. `sunset`, `ocean`, `neon`, `fire`); effects pick by index, and the palette rotates once per N beats.
 8. **Timing:** the lights are emitted as soon as a frame's look-ahead is complete; the audio plays `D` ms after capture. In effect, `D = lookahead + L_lights − L_audio_out`, and the calibration slider sets `D` directly (default 150 ms).
 

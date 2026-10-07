@@ -333,17 +333,40 @@ pub fn list_nodes() -> Result<Vec<NodeInfo>> {
         .map_err(|_| anyhow!("PipeWire registry timed out"))?
 }
 
+/// How long `auto` waits for the sound card's sink: at boot WirePlumber creates it a moment after
+/// PipeWire is up, so it may not exist yet when hue-jack starts.
+const AUTO_OUTPUT_WAIT: std::time::Duration = std::time::Duration::from_secs(20);
+
 /// Resolves `output` (`auto` = first `alsa_output.*` sink) and refuses the input sink (feedback loop).
 pub fn resolve_output(output: &str, input_sink: &str) -> Result<String> {
     let name = if output == "auto" {
-        let nodes = list_nodes()?;
-        pick_auto_output(&nodes)
-            .ok_or_else(|| anyhow!("no alsa_output.* sink found for output = auto"))?
+        wait_for_auto_output(AUTO_OUTPUT_WAIT)?
     } else {
         output.to_string()
     };
     check_not_input(&name, input_sink)?;
     Ok(name)
+}
+
+fn wait_for_auto_output(timeout: std::time::Duration) -> Result<String> {
+    let deadline = std::time::Instant::now() + timeout;
+    let mut logged = false;
+    loop {
+        if let Some(name) = pick_auto_output(&list_nodes()?) {
+            return Ok(name);
+        }
+        if std::time::Instant::now() >= deadline {
+            bail!(
+                "no alsa_output.* sink found for output = auto (waited {} s)",
+                timeout.as_secs()
+            );
+        }
+        if !logged {
+            tracing::info!("waiting for an alsa_output.* sink");
+            logged = true;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(500));
+    }
 }
 
 pub fn pick_auto_output(nodes: &[NodeInfo]) -> Option<String> {
