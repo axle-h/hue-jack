@@ -30,7 +30,7 @@ pub struct SimulateArgs {
     /// (e.g. channels copied from `hue-jack areas`).
     #[arg(long, default_value = "fake6")]
     pub layout: String,
-    #[arg(long, default_value_t = 0.8)]
+    #[arg(long, default_value_t = 1.0)]
     pub intensity: f32,
     #[arg(long, default_value_t = 1.0)]
     pub brightness: f32,

@@ -37,7 +37,7 @@ impl Default for EngineSettings {
         Self {
             effect: "pulse".into(),
             palette: "sunset".into(),
-            intensity: 0.8,
+            intensity: 1.0,
             brightness_max: 1.0,
         }
     }

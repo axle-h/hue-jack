@@ -23,9 +23,9 @@ impl Effect for Pulse {
             self.flash = (0.5 + 0.5 * f.bass_onset).max(self.flash);
         }
         let bass = f.bands[0].max(f.bands[1]);
-        let breathe = 0.06 + 0.6 * ctx.intensity * bass * bass;
+        let breathe = 0.15 + 0.6 * ctx.intensity * bass;
         let level = breathe
-            .max(self.flash * (0.4 + 0.6 * ctx.intensity))
+            .max(self.flash * (0.5 + 0.5 * ctx.intensity))
             .min(1.0);
         let n = ctx.order.len().max(1) as f32;
         for (rank, &i) in ctx.order.iter().enumerate() {

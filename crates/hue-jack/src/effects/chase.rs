@@ -35,7 +35,7 @@ impl Effect for Chase {
             self.levels[self.head] = (0.5 + 0.5 * f.onset).max(self.levels[self.head]);
             self.colours[self.head] = self.steps * 0.5;
         }
-        let glow = 0.04 + 0.1 * ctx.intensity * f.bands.iter().sum::<f32>() / 5.0;
+        let glow = 0.08 + 0.2 * ctx.intensity * f.bands.iter().sum::<f32>() / 5.0;
         for (rank, &i) in ctx.order.iter().enumerate() {
             let level = (glow + self.levels[rank] * (0.3 + 0.7 * ctx.intensity)).min(1.0);
             let c = ctx.palette.at(self.colours[rank] + ctx.palette_offset);

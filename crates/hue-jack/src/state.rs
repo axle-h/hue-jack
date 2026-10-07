@@ -41,7 +41,7 @@ impl Default for State {
             effect: "pulse".into(),
             palette: "sunset".into(),
             brightness_max: 1.0,
-            intensity: 0.8,
+            intensity: 1.0,
             idle_stop_secs: 20,
             output: "auto".into(),
             input_sink: "hue-jack-in".into(),

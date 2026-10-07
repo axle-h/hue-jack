@@ -24,7 +24,7 @@ impl Effect for Spectrum {
             let hi = (lo + 1).min(4);
             let frac = pos - lo as f32;
             let energy = f.bands[lo] * (1.0 - frac) + f.bands[hi] * frac;
-            let level = (0.03 + ctx.intensity * energy.powf(1.3)).min(1.0);
+            let level = (0.1 + 0.9 * ctx.intensity * energy.powf(0.8)).min(1.0);
             let c = ctx.palette.at(ctx.palette_offset
                 + rank as f32 * ctx.palette.colors.len() as f32 / n.max(1) as f32);
             out[i] = c.map(|v| v * level);
