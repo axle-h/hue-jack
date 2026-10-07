@@ -25,6 +25,12 @@ Latest ISO: run [37606676324](https://github.com/axle-h/hue-jack/actions/runs/37
 - ytcr: 44 vitest tests (mpv IPC client against a fake socket, format choice 774 > 141 > 251 > 140, stream proxy, control API, config).
 - Local scripts: `tools/passthrough-test.sh`, `tools/soak-test.sh`, `tools/virtual-ws-check.sh` all pass. They use dedicated `hue-jack-dev-*` null sinks and check that the configured default devices don't change.
 
+## Verified on hardware (2026-10-07, dev machine + real bridge)
+
+- `discover`, `pair` (link button) and `areas` against the real bridge (BSB002, `ecb5fafffea77674`). Area `hue-jack` (`7f6101f1-…`), 6 channels, all Hue color spots.
+- DTLS handshake and HueStream to the real bridge: `identify` 30 s (≈ 1490 packets, 0 errors), `chase` 20 s, `strobe` 10 s, all with 0 errors. `identify` lit each bulb in turn, `chase` was smooth left to right, `strobe` was steady with no dropped flashes and the bulbs looked in sync.
+- **The bridge does not restore the lights after `stop`.** It leaves each one on the last streamed frame. Fixed with snapshot and restore (see DECISIONS); after `chase` and `strobe` all six lights read back identical to before.
+
 ## Verified locally (dev machine, no bulbs)
 
 - mDNS discovery of the real bridge; unauthenticated `GET /api/0/config` (bridge id `ECB5FAFFFEA77674`, certificate CN `ecb5fafffea77674`, compared case-insensitively).
@@ -34,8 +40,7 @@ Latest ISO: run [37606676324](https://github.com/axle-h/hue-jack/actions/runs/37
 
 ## Untested on hardware
 
-- Pairing with and DTLS streaming to the **real bridge** (needs the link button), and the real bulbs: identify/chase/strobe, smoothness, latency.
-- Whether the bridge **restores the lights' previous state** after `stop` (assumed; if not, the snapshot-and-restore fallback in BUILD.md is needed).
+- Bulb latency (the 240 fps strobe measurement).
 - The NUC: booting the ISO, the unattended install, lingering user services, PipeWire/WirePlumber as `huejack`, `hue-jack-in` as the default sink, `output = auto` picking the onboard `alsa_output` (the dev machine has no ALSA sink at all), the 3.5 mm output, and the drift guard against a real sound-card clock (locally both sinks share the system clock, so it never had to correct).
 - Bluetooth: the pairing window and agent against BlueZ, phone pairing (expect a confirm prompt, see DECISIONS), A2DP-only profile (no hands-free), codecs, AVRCP absolute volume, reconnects, the D-Bus policy for `huejack`, `mpris-proxy` metadata and pause.
 - YouTube Music casting from a phone (DIAL discovery, Lounge session, play/pause/skip), the `ctt` token, **Premium itag 141/774**, YT Music metadata, `POST /pause` reaching the phone, and whether casts appear in YT Music history.

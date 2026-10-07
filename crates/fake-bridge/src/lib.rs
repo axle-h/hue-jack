@@ -1,9 +1,10 @@
 //! A fake Hue bridge for tests: CLIP v2 over HTTPS and a DTLS-PSK HueStream receiver.
 //!
 //! It implements just enough of the bridge for hue-jack: `/api/0/config`, `POST /api` (pairing, gated
-//! by [`FakeBridge::press_link_button`]), `/auth/v1`, and `entertainment_configuration` GET/PUT. The DTLS
-//! receiver only accepts a handshake while the area is started, like the real bridge, and records every
-//! HueStream packet it decodes.
+//! by [`FakeBridge::press_link_button`]), `/auth/v1`, `entertainment_configuration` GET/PUT and `light`
+//! GET/PUT. The DTLS receiver only accepts a handshake while the area is started, like the real bridge,
+//! and records every HueStream packet it decodes. Like the real bridge, `stop` leaves the lights on the
+//! last streamed frame (here: off, brightness 0).
 
 use std::io::{self, Read, Write};
 use std::net::{SocketAddr, TcpListener, UdpSocket};
@@ -69,6 +70,7 @@ struct Inner {
     active: bool,
     events: Vec<(Instant, Event)>,
     packets: Vec<Packet>,
+    lights: Vec<Value>,
 }
 
 #[derive(Clone)]
@@ -96,7 +98,10 @@ impl FakeBridge {
 
     /// Starts the fake bridge on the given HTTPS and DTLS addresses (port 0 = ephemeral).
     pub async fn start_on(https: SocketAddr, dtls: SocketAddr) -> Result<Self> {
-        let shared = Shared(Arc::new(Mutex::new(Inner::default())));
+        let shared = Shared(Arc::new(Mutex::new(Inner {
+            lights: initial_lights(),
+            ..Inner::default()
+        })));
         let (cert_pem, key_pem) = self_signed(BRIDGE_ID)?;
         let config = OpenSSLConfig::from_pem(&cert_pem, &key_pem).context("TLS config")?;
         let listener = TcpListener::bind(https)?;
@@ -169,6 +174,10 @@ impl FakeBridge {
             inner.app_id.clone()?,
         ))
     }
+    /// The CLIP `light` resources of the area's lights, in channel order.
+    pub fn lights(&self) -> Vec<Value> {
+        self.shared.0.lock().lights.clone()
+    }
     /// Pre-pairs without the button, returning `(app_key, client_key, app_id)`.
     pub fn pre_pair(&self) -> (String, String, String) {
         let mut inner = self.shared.0.lock();
@@ -234,6 +243,38 @@ fn self_signed(cn: &str) -> Result<(Vec<u8>, Vec<u8>)> {
     Ok((b.build().to_pem()?, key.private_key_to_pem_pkcs8()?))
 }
 
+fn light_id(i: usize) -> String {
+    format!("11111111-0000-0000-0000-00000000000{i}")
+}
+
+/// Six colour lights in a mix of states: on in colour temperature, on in xy, and off.
+fn initial_lights() -> Vec<Value> {
+    (0..6)
+        .map(|i| {
+            let (on, ct) = (i % 3 != 2, i % 2 == 0);
+            json!({
+                "id": light_id(i),
+                "type": "light",
+                "metadata": {"name": format!("Fake light {i}")},
+                "on": {"on": on},
+                "dimming": {"brightness": 20.0 + 10.0 * i as f64},
+                "color_temperature": {"mirek": if ct { json!(250 + 20 * i) } else { Value::Null }, "mirek_valid": ct},
+                "color": {"xy": {"x": 0.3 + 0.01 * i as f64, "y": 0.3}},
+            })
+        })
+        .collect()
+}
+
+/// What the real bridge leaves behind after a stream: the last frame (here, all black).
+fn blank_lights(lights: &mut [Value]) {
+    for l in lights {
+        l["on"] = json!({"on": false});
+        l["dimming"]["brightness"] = json!(0.0);
+        l["color"]["xy"] = json!({"x": 0.1532, "y": 0.0475});
+        l["color_temperature"] = json!({"mirek": null, "mirek_valid": false});
+    }
+}
+
 fn area_json(active: bool) -> Value {
     // Six channels around a living room: a row of three at the front and three behind.
     let positions = [
@@ -262,6 +303,7 @@ fn area_json(active: bool) -> Value {
         "configuration_type": "screen",
         "status": if active { "active" } else { "inactive" },
         "channels": channels,
+        "light_services": (0..6).map(|i| json!({"rid": light_id(i), "rtype": "light"})).collect::<Vec<_>>(),
     })
 }
 
@@ -278,7 +320,53 @@ fn router(shared: Shared) -> Router {
             "/clip/v2/resource/entertainment_configuration/{id}",
             get(get_area).put(put_area),
         )
+        .route("/clip/v2/resource/light", get(list_lights))
+        .route(
+            "/clip/v2/resource/light/{id}",
+            axum::routing::put(put_light),
+        )
         .with_state(shared)
+}
+
+async fn list_lights(State(s): State<Shared>, headers: HeaderMap) -> Response {
+    if !authorised(&s, &headers) {
+        return forbidden();
+    }
+    let lights = s.0.lock().lights.clone();
+    Json(json!({"errors": [], "data": lights})).into_response()
+}
+
+async fn put_light(
+    State(s): State<Shared>,
+    headers: HeaderMap,
+    Path(id): Path<String>,
+    Json(body): Json<Value>,
+) -> Response {
+    if !authorised(&s, &headers) {
+        return forbidden();
+    }
+    let mut inner = s.0.lock();
+    let Some(light) = inner.lights.iter_mut().find(|l| l["id"] == id.as_str()) else {
+        return (
+            StatusCode::NOT_FOUND,
+            Json(json!({"errors": [{"description": "Not found"}], "data": []})),
+        )
+            .into_response();
+    };
+    if let Some(on) = body.get("on") {
+        light["on"] = on.clone();
+    }
+    if let Some(b) = body.pointer("/dimming/brightness") {
+        light["dimming"]["brightness"] = b.clone();
+    }
+    if let Some(xy) = body.pointer("/color/xy") {
+        light["color"]["xy"] = xy.clone();
+        light["color_temperature"] = json!({"mirek": null, "mirek_valid": false});
+    }
+    if let Some(m) = body.pointer("/color_temperature/mirek") {
+        light["color_temperature"] = json!({"mirek": m, "mirek_valid": true});
+    }
+    Json(json!({"errors": [], "data": [{"rid": id, "rtype": "light"}]})).into_response()
 }
 
 async fn config() -> Json<Value> {
@@ -382,6 +470,7 @@ async fn put_area(
         }
         Some("stop") => {
             inner.active = false;
+            blank_lights(&mut inner.lights);
             inner.events.push((Instant::now(), Event::Stop(id.clone())));
         }
         _ => {

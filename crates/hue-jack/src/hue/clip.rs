@@ -167,6 +167,94 @@ impl HueClient {
         check_status(resp).await?;
         Ok(())
     }
+
+    /// The current state of every light in the area (its `light_services`).
+    pub async fn area_light_states(&self, area_id: &str) -> Result<Vec<LightState>> {
+        let resp = self
+            .send(self.request(
+                Method::GET,
+                &format!("/clip/v2/resource/entertainment_configuration/{area_id}"),
+            ))
+            .await?;
+        let area: Value = check_status(resp).await?.json().await?;
+        let ids: Vec<&str> = area["data"][0]["light_services"]
+            .as_array()
+            .map(|a| a.iter().filter_map(|s| s["rid"].as_str()).collect())
+            .unwrap_or_default();
+        let resp = self
+            .send(self.request(Method::GET, "/clip/v2/resource/light"))
+            .await?;
+        let lights: Value = check_status(resp).await?.json().await?;
+        Ok(lights["data"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .filter(|l| l["id"].as_str().is_some_and(|id| ids.contains(&id)))
+            .filter_map(parse_light_state)
+            .collect())
+    }
+
+    /// `PUT /clip/v2/resource/light/{id}` with on/off, brightness and colour in one request.
+    /// The bridge accepts brightness and colour for a light that stays off.
+    pub async fn set_light_state(&self, light: &LightState) -> Result<()> {
+        let resp = self
+            .send(
+                self.request(
+                    Method::PUT,
+                    &format!("/clip/v2/resource/light/{}", light.id),
+                )
+                .json(&light_state_body(light)),
+            )
+            .await?;
+        check_status(resp).await?;
+        Ok(())
+    }
+}
+
+/// A light's on/off, brightness and colour. The bridge leaves lights on the last streamed frame after
+/// `stop`, so the stream snapshots these before `start` and writes them back afterwards.
+#[derive(Clone, Debug, PartialEq)]
+pub struct LightState {
+    pub id: String,
+    pub on: bool,
+    pub brightness: Option<f64>,
+    pub colour: Option<LightColour>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum LightColour {
+    Xy(f64, f64),
+    Mirek(u64),
+}
+
+fn parse_light_state(v: &Value) -> Option<LightState> {
+    let xy = &v["color"]["xy"];
+    let colour = match v["color_temperature"]["mirek"].as_u64() {
+        Some(m) if v["color_temperature"]["mirek_valid"] == true => Some(LightColour::Mirek(m)),
+        _ => xy["x"]
+            .as_f64()
+            .zip(xy["y"].as_f64())
+            .map(|(x, y)| LightColour::Xy(x, y)),
+    };
+    Some(LightState {
+        id: v["id"].as_str()?.to_string(),
+        on: v["on"]["on"].as_bool()?,
+        brightness: v["dimming"]["brightness"].as_f64(),
+        colour,
+    })
+}
+
+fn light_state_body(light: &LightState) -> Value {
+    let mut body = json!({ "on": { "on": light.on } });
+    if let Some(b) = light.brightness {
+        body["dimming"] = json!({ "brightness": b });
+    }
+    match light.colour {
+        Some(LightColour::Xy(x, y)) => body["color"] = json!({ "xy": { "x": x, "y": y } }),
+        Some(LightColour::Mirek(m)) => body["color_temperature"] = json!({ "mirek": m }),
+        None => {}
+    }
+    body
 }
 
 async fn check_status(resp: Response) -> Result<Response> {
@@ -284,6 +372,38 @@ mod tests {
         );
         let other = json!([{"error": {"type": 7, "description": "invalid value"}}]);
         assert!(parse_create_user(&other).is_err());
+    }
+
+    #[test]
+    fn light_state_round_trip() {
+        let xy = json!({"id": "a", "on": {"on": false}, "dimming": {"brightness": 0.0},
+            "color_temperature": {"mirek": null, "mirek_valid": false},
+            "color": {"xy": {"x": 0.3127, "y": 0.3325}}});
+        let s = parse_light_state(&xy).unwrap();
+        assert_eq!(
+            s,
+            LightState {
+                id: "a".into(),
+                on: false,
+                brightness: Some(0.0),
+                colour: Some(LightColour::Xy(0.3127, 0.3325))
+            }
+        );
+        assert_eq!(
+            light_state_body(&s),
+            json!({"on": {"on": false}, "dimming": {"brightness": 0.0}, "color": {"xy": {"x": 0.3127, "y": 0.3325}}})
+        );
+
+        let ct = json!({"id": "b", "on": {"on": true}, "dimming": {"brightness": 60.08},
+            "color_temperature": {"mirek": 366, "mirek_valid": true},
+            "color": {"xy": {"x": 0.4572, "y": 0.4099}}});
+        assert_eq!(
+            light_state_body(&parse_light_state(&ct).unwrap()),
+            json!({"on": {"on": true}, "dimming": {"brightness": 60.08}, "color_temperature": {"mirek": 366}})
+        );
+
+        let white = json!({"id": "c", "on": {"on": true}, "dimming": {"brightness": 40.0}});
+        assert_eq!(parse_light_state(&white).unwrap().colour, None);
     }
 
     #[test]

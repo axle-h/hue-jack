@@ -1,4 +1,5 @@
-//! M1 acceptance: pair (with a refused attempt first), list areas, start, stream `chase` for 3 s, stop.
+//! M1 acceptance: pair (with a refused attempt first), list areas, start, stream `chase` for 3 s, stop,
+//! and the lights are back in their previous state.
 
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -72,6 +73,7 @@ async fn pair_list_stream_stop() {
     assert_eq!(area.channels.len(), 6);
 
     // Stream chase for 3 s.
+    let lights_before = bridge.lights();
     let frames: FrameSlot = Arc::new(Mutex::new(LightFrame::default()));
     let stats = Arc::new(StreamStats::default());
     let target = DtlsTarget::new(
@@ -153,6 +155,26 @@ async fn pair_list_stream_stop() {
     );
     assert!(!bridge.is_active());
     assert_eq!(stats.state().0, StreamState::Idle);
+    assert_eq!(
+        visible(&bridge.lights()),
+        visible(&lights_before),
+        "lights restored after stop"
+    );
+}
+
+/// What a light shows: on/off, brightness, and colour temperature or xy, whichever mode it's in.
+fn visible(lights: &[serde_json::Value]) -> Vec<serde_json::Value> {
+    lights
+        .iter()
+        .map(|l| {
+            let colour = if l["color_temperature"]["mirek_valid"] == true {
+                l["color_temperature"]["mirek"].clone()
+            } else {
+                l["color"]["xy"].clone()
+            };
+            serde_json::json!([l["id"], l["on"], l["dimming"], colour])
+        })
+        .collect()
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]

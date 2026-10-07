@@ -2,7 +2,9 @@
 //!
 //! [`StreamSession`] owns the lifecycle: `PUT {"action":"start"}`, DTLS handshake, send the latest
 //! [`LightFrame`] at 50 Hz (resending during quiet passages so the bridge's ~10 s timeout never trips),
-//! and on any error `stop` → back off 1/2/5 s → `start` + re-handshake.
+//! and on any error `stop` → back off 1/2/5 s → `start` + re-handshake. The bridge leaves the lights on
+//! the last streamed frame, so the session snapshots their state before the first `start` and restores
+//! it after the final `stop`.
 
 use std::io::{self, Read, Write};
 use std::net::{ToSocketAddrs, UdpSocket};
@@ -18,7 +20,7 @@ use openssl::ssl::{
 };
 use serde::Serialize;
 
-use super::clip::HueClient;
+use super::clip::{HueClient, LightState};
 use super::huestream;
 use crate::engine::LightFrame;
 
@@ -30,6 +32,8 @@ const BACKOFF: [Duration; 3] = [
     Duration::from_secs(2),
     Duration::from_secs(5),
 ];
+/// Spacing between light writes when restoring; the bridge handles about 10 light commands a second.
+const RESTORE_SPACING: Duration = Duration::from_millis(100);
 /// `DTLS_CTRL_HANDLE_TIMEOUT` from `ssl.h` (`DTLSv1_handle_timeout` is a macro, not exported by openssl-sys).
 const DTLS_CTRL_HANDLE_TIMEOUT: libc::c_int = 74;
 
@@ -280,7 +284,7 @@ impl StreamSession {
         &self.area_id
     }
 
-    /// Stops sending, sends `{"action":"stop"}` and waits for the session to finish.
+    /// Stops sending, sends `{"action":"stop"}`, restores the lights and waits for the session to finish.
     pub async fn stop(self) {
         self.cancel.store(true, Ordering::Relaxed);
         let _ = self.task.await;
@@ -295,6 +299,13 @@ async fn supervise(
     stats: Arc<StreamStats>,
     cancel: Arc<AtomicBool>,
 ) {
+    let snapshot = match client.area_light_states(&area_id).await {
+        Ok(s) => s,
+        Err(e) => {
+            tracing::warn!(error = %format!("{e:#}"), "reading light states failed; they won't be restored");
+            Vec::new()
+        }
+    };
     let mut failures = 0usize;
     while !cancel.load(Ordering::Relaxed) {
         stats.set_state(StreamState::Starting, None);
@@ -340,6 +351,18 @@ async fn supervise(
     if let Err(e) = client.set_streaming(&area_id, false).await {
         tracing::warn!(error = %format!("{e:#}"), "stopping entertainment area failed");
     }
+    restore_lights(&client, &snapshot).await;
     stats.set_state(StreamState::Idle, None);
     tracing::info!(area = area_id, "stream stopped");
+}
+
+async fn restore_lights(client: &HueClient, lights: &[LightState]) {
+    for (i, light) in lights.iter().enumerate() {
+        if i > 0 {
+            tokio::time::sleep(RESTORE_SPACING).await;
+        }
+        if let Err(e) = client.set_light_state(light).await {
+            tracing::warn!(light = light.id, error = %format!("{e:#}"), "restoring light failed");
+        }
+    }
 }
