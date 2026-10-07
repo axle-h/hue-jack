@@ -41,7 +41,8 @@ Latest ISO: run [37606676324](https://github.com/axle-h/hue-jack/actions/runs/37
 - `bootc upgrade` + reboot twice (rollback image kept, state survives). `bootc-fetch-apply-updates.timer` is masked, so it never updates on its own.
 - Bluetooth from a Pixel 10 Pro: pairs, plays through the speakers, lights in sync; still working after the upgrade reboot (reconnecting without re-pairing not checked separately). Calibrated `D` ≈ **100 ms** by eye.
 - Drift guard against the real sound card: corrections come in short bursts (≈ 0.7/s on average over a Bluetooth session), 0 underruns.
-- Fixed after this run (needs the next image): the boot race where hue-jack started before the ALSA sink existed (the first start failed, the systemd restart recovered).
+- Boot race fixed in `3e1a01e` (image `157be720b466`): hue-jack now logs "waiting for an alsa_output.* sink", finds it ≈ 1 s later and starts first time. The first bridge request at boot can fail with "Network is unreachable"; the retry succeeds.
+- `cycle` and `random` are in the image; not yet watched on the bulbs.
 
 ## Verified locally (dev machine, no bulbs)
 
