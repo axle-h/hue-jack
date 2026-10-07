@@ -31,6 +31,10 @@ Latest ISO: run [37606676324](https://github.com/axle-h/hue-jack/actions/runs/37
 - DTLS handshake and HueStream to the real bridge: `identify` 30 s (≈ 1490 packets, 0 errors), `chase` 20 s, `strobe` 10 s, all with 0 errors. `identify` lit each bulb in turn, `chase` was smooth left to right, `strobe` was steady with no dropped flashes and the bulbs looked in sync.
 - **The bridge does not restore the lights after `stop`.** It leaves each one on the last streamed frame. Fixed with snapshot and restore (see DECISIONS); after `chase` and `strobe` all six lights read back identical to before.
 
+- H3 on the dev machine (`serve` between the dev sinks, real bulbs): selecting the area in the UI, `drums_128` detected at 127.7 BPM, a real track at 125 BPM, 50 packets/s, 0 underruns; `pulse`, `spectrum` and `chase` all react; the stream stops 20 s after the music ends and the lights return to the scene.
+- **Output gamma removed.** The bridge reported a streamed 10 % white as 9.9 % brightness, so it maps RGB linearly onto Hue's already-perceptual brightness scale; the 2.2 gamma darkened everything twice (pulse averaged 20 %). Without it the lights look right (see DECISIONS).
+- `pulse` moves all lights together by design (a 0.3-colour spread across the room); `spectrum` and `chase` differ per light. Port 8080 is taken on the dev machine by an unrelated service, so dev runs use `--listen 127.0.0.1:8090`.
+
 ## Verified locally (dev machine, no bulbs)
 
 - mDNS discovery of the real bridge; unauthenticated `GET /api/0/config` (bridge id `ECB5FAFFFEA77674`, certificate CN `ecb5fafffea77674`, compared case-insensitively).

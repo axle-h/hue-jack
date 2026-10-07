@@ -150,7 +150,7 @@ Each milestone ends with its acceptance checks passing locally *and* in CI (wher
   - Analysis of a 60 s file runs in < 1 s in release mode.
 
 ### M4: effects + engine + simulate
-- `Effect` trait; `pulse`, `spectrum`, `chase`; palettes; smoothing; gamma; brightness cap.
+- `Effect` trait; `pulse`, `spectrum`, `chase`; palettes; smoothing; brightness cap.
 - `engine.rs` ties features → effect → `LightFrame { channels: Vec<(u8, [u16;3])> }` at 50 Hz, consumed by both the Hue streamer and the WS virtual view.
 - `simulate` writes `preview.html`: the WAV embedded base64 (≤ 30 s clip), frames as JSON, and a canvas drawing channels at their x/y, synced to `audio.currentTime`.
 - **Accept:**

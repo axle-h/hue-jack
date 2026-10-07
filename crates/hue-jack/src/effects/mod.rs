@@ -10,11 +10,9 @@ pub mod spectrum;
 use crate::hue::Channel;
 pub use palette::{PALETTES, Palette, palette};
 
-/// Effect colour, each component 0..1 (perceptual; gamma is applied on output).
+/// Effect colour, each component 0..1 (perceptual). The bridge maps RGB straight onto the Hue
+/// brightness scale, which is already perceptual, so no gamma is applied on output.
 pub type Rgb = [f32; 3];
-
-/// Output gamma applied when converting effect colours to bridge values.
-pub const GAMMA: f32 = 2.2;
 
 pub const EFFECTS: [&str; 3] = ["pulse", "spectrum", "chase"];
 
@@ -59,10 +57,10 @@ pub fn create(name: &str) -> Option<Box<dyn Effect>> {
     })
 }
 
-/// Converts an effect colour to bridge RGB16: gamma, then the global brightness cap.
+/// Converts an effect colour to bridge RGB16 with the global brightness cap.
 pub fn to_u16(rgb: Rgb, brightness_max: f32) -> [u16; 3] {
     let cap = brightness_max.clamp(0.0, 1.0);
-    rgb.map(|c| (c.clamp(0.0, 1.0).powf(GAMMA) * cap * 65535.0).round() as u16)
+    rgb.map(|c| (c.clamp(0.0, 1.0) * cap * 65535.0).round() as u16)
 }
 
 /// Converts an effect colour to 8-bit for on-screen previews (screens apply their own gamma).
@@ -126,7 +124,7 @@ mod tests {
 
     #[test]
     fn output_conversion() {
-        assert_eq!(to_u16([1.0, 0.0, 0.5], 1.0), [65535, 0, 14263]);
+        assert_eq!(to_u16([1.0, 0.0, 0.5], 1.0), [65535, 0, 32768]);
         assert_eq!(to_u16([1.0, 1.0, 1.0], 0.5), [32768, 32768, 32768]);
         assert_eq!(to_u16([2.0, -1.0, 0.0], 1.0), [65535, 0, 0]);
         assert_eq!(to_u8([1.0, 0.5, 0.0], 1.0), [255, 128, 0]);

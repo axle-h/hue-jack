@@ -158,7 +158,7 @@ impl Engine {
         self.pattern = pattern.map(|p| (p, None));
     }
 
-    /// The smoothed colours of the last frame (before gamma and the brightness cap).
+    /// The smoothed colours of the last frame (before the brightness cap).
     pub fn smoothed(&self) -> &[Rgb] {
         &self.buf
     }
